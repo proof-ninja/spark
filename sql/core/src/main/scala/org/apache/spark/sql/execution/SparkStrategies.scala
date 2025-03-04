@@ -295,9 +295,20 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
           }
         }
 
+        def createOreOreJoin() = {
+          logWarning("*** Use OreOreJoin! ***")
+          if (joinType.isInstanceOf[InnerLike] && !hintToNotBroadcastAndReplicate(hint)) {
+            Some(Seq(joins.OreOreJoinExec(planLater(left), planLater(right), j.condition)))
+          } else {
+            None
+          }
+        }
+
         def createJoinWithoutHint() = {
-          createBroadcastHashJoin(false)
+//          createBroadcastHashJoin(false)
+          createOreOreJoin()
             .orElse(createShuffleHashJoin(false))
+            .orElse(createBroadcastHashJoin(false))
             .orElse(createSortMergeJoin())
             .orElse(createCartesianProduct())
             .getOrElse {
