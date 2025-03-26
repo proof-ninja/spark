@@ -912,6 +912,39 @@ abstract class Dataset[T] extends Serializable {
    */
   def lateralJoin(right: Dataset[_], joinExprs: Column, joinType: String): DataFrame
 
+  def flowJoin[X](right: DataFrame, joinExprs: Column, heavyHitters: Set[X]): DataFrame = {
+    val left = this.asInstanceOf[DataFrame]
+
+    def split(table: DataFrame, colName: String): (DataFrame, DataFrame) = {
+      val idx = table.schema.fieldIndex(colName)
+      (
+        table.filter(row => heavyHitters.contains(row.getAs[X](idx))),
+        table.filter(row => !heavyHitters.contains(row.getAs[X](idx)))
+      )
+    }
+
+    val (leftColName, rightColName) = joinExprs.node match {
+      case expr: internal.UnresolvedFunction =>
+        expr.arguments match {
+          case Seq(left: internal.UnresolvedAttribute, right: internal.UnresolvedAttribute) =>
+            (left.nameParts.head, right.nameParts.head)
+          case _ =>
+            throw new Exception(s"Invalid arguments: $joinExprs")
+        }
+      case _ =>
+        throw new Exception(s"Invalid ON: $joinExprs")
+    }
+
+    val (leftBr, leftSc) = split(left, leftColName)
+    val (rightBr, rightSc) = split(right, rightColName)
+
+    val sc =
+      leftSc.hint("shuffle_hash").join(rightSc, leftSc(leftColName) === rightSc(rightColName))
+    val br = leftBr.hint("broadcast").join(rightBr, leftBr(leftColName) === rightBr(rightColName))
+
+    sc.union(br)
+  }
+
   protected def sortInternal(global: Boolean, sortExprs: Seq[Column]): Dataset[T]
 
   /**
