@@ -34,7 +34,8 @@ case class FlowJoinExec(
   leftKeys: Seq[Expression],
   rightKeys: Seq[Expression],
   joinType: JoinType,
-  buildSide: BuildSide,
+  brBuildSide: BuildSide,
+  shBuildSide: BuildSide,
   condition: Option[Expression],
   left: SparkPlan,
   right: SparkPlan,
@@ -102,10 +103,10 @@ case class FlowJoinExec(
     val (rightBr, rightSc) = split[Any](rightResults, rightKeyReference, heavyHitters)
 
     val broadcastHashJoinExec = BroadcastHashJoinExec(
-      leftKeys, rightKeys, joinType, buildSide, condition, leftBr, rightBr
+      leftKeys, rightKeys, joinType, brBuildSide, condition, leftBr, rightBr
     )
     val shuffledHashJoinExec = ShuffledHashJoinExec(
-      leftKeys, rightKeys, joinType, buildSide, condition, leftSc, rightSc, isSkewJoin = false
+      leftKeys, rightKeys, joinType, shBuildSide, condition, leftSc, rightSc, isSkewJoin = false
     )
 
     val broadcastHashJoinResults = sparkSession.createDataFrame(

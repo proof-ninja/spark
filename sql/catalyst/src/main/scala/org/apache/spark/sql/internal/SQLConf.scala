@@ -5587,6 +5587,16 @@ object SQLConf {
       .booleanConf
       .createWithDefault(true)
 
+  val FORCE_FLOW_JOIN_EXEC =
+    buildConf("spark.sql.forceFlowJoin.enabled")
+      .internal()
+      .doc(
+        "Use FlowJoinExec."
+      )
+      .version("proof-ninja fork")
+      .booleanConf
+      .createWithDefault(false)
+
   /**
    * Holds information about keys that have been deprecated.
    *
@@ -6592,6 +6602,8 @@ class SQLConf extends Serializable with Logging with SqlApiConf {
   def legacyCodingErrorAction: Boolean = getConf(SQLConf.LEGACY_CODING_ERROR_ACTION)
 
   def legacyEvalCurrentTime: Boolean = getConf(SQLConf.LEGACY_EVAL_CURRENT_TIME)
+
+  def forceFlowJoinExec: Boolean = getConf(SQLConf.FORCE_FLOW_JOIN_EXEC)
 
   /** ********************** SQLConf functionality methods ************ */
 
