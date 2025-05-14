@@ -355,7 +355,26 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
         } else if (hint.isEmpty) {
           createJoinWithoutHint()
         } else {
-          createBroadcastHashJoin(true)
+          {
+            if (hintToFlowJoin(hint)) {
+              createFlowJoin(true)
+                .orElse(createFlowJoin(false))
+                .orElse {
+                  if (hashJoinSupport) {
+                    val buildSide = getSmallerSide(left, right)
+                    Some(Seq(joins.FlowJoinExec(
+                      leftKeys,
+                      rightKeys,
+                      joinType,
+                      buildSide,
+                      buildSide,
+                      nonEquiCond,
+                      planLater(left),
+                      planLater(right))))
+                  } else None
+                }
+            } else None
+          }.orElse(createBroadcastHashJoin(true))
             .orElse { if (hintToSortMergeJoin(hint)) createSortMergeJoin() else None }
             .orElse(createShuffleHashJoin(true))
             .orElse { if (hintToShuffleReplicateNL(hint)) createCartesianProduct() else None }

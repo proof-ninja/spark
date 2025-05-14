@@ -72,6 +72,16 @@ class JoinHintSuite extends PlanTest with SharedSparkSession with AdaptiveSparkP
     assert(joinHints == expectedHints)
   }
 
+  test("flow join") {
+    verifyJoinHint(
+      df.hint("flow_join").join(df, "id"),
+      JoinHint(
+        Some(HintInfo(strategy = Some(FLOW))),
+        None
+      ) :: Nil
+    )
+  }
+
   test("single join") {
     verifyJoinHint(
       df.hint("broadcast").join(df, "id"),

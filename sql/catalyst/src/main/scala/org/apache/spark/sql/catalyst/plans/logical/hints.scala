@@ -127,7 +127,8 @@ object JoinStrategyHint {
     BROADCAST,
     SHUFFLE_MERGE,
     SHUFFLE_HASH,
-    SHUFFLE_REPLICATE_NL)
+    SHUFFLE_REPLICATE_NL,
+    FLOW)
 }
 
 /**
@@ -195,6 +196,14 @@ case object PREFER_SHUFFLE_HASH extends JoinStrategyHint {
 case object NO_BROADCAST_AND_REPLICATION extends JoinStrategyHint {
   override def displayName: String = "no_broadcast_and_replication"
   override def hintAliases: Set[String] = Set.empty
+}
+
+case object FLOW extends JoinStrategyHint {
+  override def displayName: String = "flow_join"
+  override def hintAliases: Set[String] = Set(
+    "FLOW",
+    "FLOW_JOIN"
+  )
 }
 
 abstract class AggregateHint;
