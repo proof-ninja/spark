@@ -285,6 +285,29 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
           }
         }
 
+        def createFlowJoin(onlyLookingAtHint: Boolean) = {
+          if (hashJoinSupport) {
+            val brBuildSide = getBroadcastBuildSide(j, onlyLookingAtHint, conf)
+            checkHintBuildSide(onlyLookingAtHint, brBuildSide, joinType, hint, isBroadcast = true)
+            val shBuildSide = getShuffleHashJoinBuildSide(j, onlyLookingAtHint, conf)
+            checkHintBuildSide(onlyLookingAtHint, shBuildSide, joinType, hint, isBroadcast = false)
+            brBuildSide.zip(shBuildSide).map {
+              case (brBuildSide, shBuildSide) =>
+                Seq(joins.FlowJoinExec(
+                  leftKeys,
+                  rightKeys,
+                  joinType,
+                  brBuildSide,
+                  shBuildSide,
+                  nonEquiCond,
+                  planLater(left),
+                  planLater(right)))
+            }
+          } else {
+            None
+          }
+        }
+
         def createCartesianProduct() = {
           if (joinType.isInstanceOf[InnerLike] && !hintToNotBroadcastAndReplicate(hint)) {
             // `CartesianProductExec` can't implicitly evaluate equal join condition, here we should
@@ -311,10 +334,47 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
             }
         }
 
-        if (hint.isEmpty) {
+        if (conf.forceFlowJoinExec) {
+          createFlowJoin(true)
+            .orElse(createFlowJoin(false))
+            .orElse {
+              if (hashJoinSupport) {
+                val buildSide = getSmallerSide(left, right)
+                Some(Seq(joins.FlowJoinExec(
+                  leftKeys,
+                  rightKeys,
+                  joinType,
+                  buildSide,
+                  buildSide,
+                  nonEquiCond,
+                  planLater(left),
+                  planLater(right))))
+              } else None
+            }
+            .getOrElse(createJoinWithoutHint())
+        } else if (hint.isEmpty) {
           createJoinWithoutHint()
         } else {
-          createBroadcastHashJoin(true)
+          {
+            if (hintToFlowJoin(hint)) {
+              createFlowJoin(true)
+                .orElse(createFlowJoin(false))
+                .orElse {
+                  if (hashJoinSupport) {
+                    val buildSide = getSmallerSide(left, right)
+                    Some(Seq(joins.FlowJoinExec(
+                      leftKeys,
+                      rightKeys,
+                      joinType,
+                      buildSide,
+                      buildSide,
+                      nonEquiCond,
+                      planLater(left),
+                      planLater(right))))
+                  } else None
+                }
+            } else None
+          }.orElse(createBroadcastHashJoin(true))
             .orElse { if (hintToSortMergeJoin(hint)) createSortMergeJoin() else None }
             .orElse(createShuffleHashJoin(true))
             .orElse { if (hintToShuffleReplicateNL(hint)) createCartesianProduct() else None }

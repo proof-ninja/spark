@@ -503,6 +503,11 @@ trait JoinSelectionHelper extends Logging {
     hint.rightHint.exists(_.strategy.contains(NO_BROADCAST_AND_REPLICATION))
   }
 
+  def hintToFlowJoin(hint: JoinHint): Boolean = {
+    hint.leftHint.exists(_.strategy.contains(FLOW)) ||
+      hint.rightHint.exists(_.strategy.contains(FLOW))
+  }
+
   private def getBuildSide(
       canBuildLeft: Boolean,
       canBuildRight: Boolean,

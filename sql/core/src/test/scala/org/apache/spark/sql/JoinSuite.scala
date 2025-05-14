@@ -58,6 +58,26 @@ class JoinSuite extends QueryTest with SharedSparkSession with AdaptiveSparkPlan
     assert(planned.size === 1)
   }
 
+  test("flow join from hint") {
+    withSQLConf(SQLConf.FORCE_FLOW_JOIN_EXEC.key -> "false") {
+      spark.sharedState.cacheManager.clearCache()
+      val df = testData.hint("flow_join").join(testData2, $"key" === $"a")
+      val physical = df.queryExecution.sparkPlan
+      val optimized = df.queryExecution.optimizedPlan
+      val operators = physical.collect {
+        case j: BroadcastHashJoinExec => j
+        case j: ShuffledHashJoinExec => j
+        case j: CartesianProductExec => j
+        case j: BroadcastNestedLoopJoinExec => j
+        case j: SortMergeJoinExec => j
+        case j: FlowJoinExec => j
+      }
+
+      assert(operators.size === 1)
+      assert(operators.head.getClass === classOf[FlowJoinExec])
+    }
+  }
+
   def assertJoin(pair: (String, Class[_ <: BinaryExecNode])): Any = {
     val sqlString = pair._1
     val c = pair._2
